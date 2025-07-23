@@ -60,7 +60,9 @@ def main():
     st.title("CropWise (Crop Recommender)")
     
     # Load and show image
-    image = Image.open('C:/Users/ghosh/Desktop/CropWise/data/cc.jpg')
+    base_path = os.path.dirname(r'C:\Users\ghosh\Desktop\CropWise')
+    image_path = os.path.join(r'C:\Users\ghosh\Desktop\CropWise', '..', 'data', 'cc.jpg')
+    image = Image.open(image_path)
     st.image(image, use_column_width=True)
     
     # Header
