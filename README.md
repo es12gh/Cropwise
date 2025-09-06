@@ -1,4 +1,4 @@
-# 🌱 CropWise - Smart Crop Recommender
+# 🌱 CropWise - Smart Crop Recommender (Springer Accepted)
 
 CropWise is a **Streamlit-based smart crop recommendation app** that uses **machine learning** and **Gemini AI** to suggest the most suitable crops based on soil and environmental conditions.  
 It also provides **detailed cultivation insights** in **multiple Indian languages**, making it farmer-friendly and widely accessible.
