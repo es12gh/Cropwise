@@ -1,14 +1,13 @@
 import streamlit as st
-import pickle
-from PIL import Image
 import joblib
-import base64
 import os
+from PIL import Image
 import google.generativeai as genai
-# ✅ Configure Gemini API key
-genai.configure(api_key="AIzaSyAsEaVsf6LnoxPu27phiWroGYOYXfSxkhw")# or hardcode for testing
 
-# ✅ Define generation config
+# ✅ Configure Gemini API key
+genai.configure(api_key="AIzaSyAsEaVsf6LnoxPu27phiWroGYOYXfSxkhw")
+
+# ✅ Generation config
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
@@ -17,104 +16,138 @@ generation_config = {
     "response_mime_type": "text/plain",
 }
 
-# ✅ System prompt
-system_instruction = """
-Given the name of a crop, your task is to generate detailed insights about it. Your response should include the following information:
-1. Climate Requirements: Ideal temperature, humidity, and rainfall levels.
-2. Sowing Time: The best planting season or month(s) for optimal growth.
-3. Soil Preparation: The type of soil needed, pH levels, and preparation tips.
-4. Spacing and Planting Depth: Appropriate spacing between plants and recommended planting depth.
-5. Fertilizer Recommendations: Types, quantities, and application schedule of fertilizers for each growth stage.
-6. Pesticides and Pest Control: Common pests for this crop, recommended pesticides, and organic alternatives.
-7. Irrigation Requirements: Frequency and amount of water required at different stages.
-8. Growth Stages and Care: Key growth milestones, pruning, weeding, and other care tips.
-9. Harvesting Time: Signs of maturity, best time to harvest, and post-harvest handling.
-10. Equipment Needed: Essential tools and machinery for cultivation, maintenance, and harvesting.
-11. Companion and Similar Crops: Suggestions for intercropping or similar crops with matching climate and soil needs.
+# ✅ Language options (all major Indian languages)
+languages = {
+    "English": "English",
+    "Hindi": "Hindi",
+    "Bengali": "Bengali",
+    "Tamil": "Tamil",
+    "Telugu": "Telugu",
+    "Kannada": "Kannada",
+    "Malayalam": "Malayalam",
+    "Gujarati": "Gujarati",
+    "Marathi": "Marathi",
+    "Punjabi": "Punjabi",
+    "Odia": "Odia",
+    "Urdu": "Urdu"
+}
 
-Please also include any other relevant information or tips to help farmers maximize yield and ensure a healthy crop.
+# ✅ Cache Gemini model
+@st.cache_resource
+def get_gemini_model(system_instruction=None):
+    return genai.GenerativeModel(
+        model_name="gemini-2.5-pro",
+        generation_config=generation_config,
+        system_instruction=system_instruction
+    )
 
-Strictly follow the format in the above example, not the points of the example.
-"""
+# ✅ Cache model loader
+@st.cache_resource
+def load_model(path):
+    return joblib.load(path)
 
-# ✅ Load the Gemini model
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-pro",
-    generation_config=generation_config,
-    system_instruction=system_instruction
-)
+# ✅ Cache image loader
+@st.cache_resource
+def load_image():
+    return Image.open(r'C:\Users\ghosh\Desktop\CropWise\data\cc.jpg')
 
-# ✅ Define local model paths
-base_path = os.path.dirname(__file__)
-model_path1 = os.path.join(base_path, 'LogisticRegression_model.pkl')
-model_path2 = os.path.join(base_path, 'DecisionTree_model.pkl')
-model_path3 = os.path.join(base_path, 'NaiveBayes_model.pkl')
-model_path4 = os.path.join(base_path, 'RandomForest_model.pkl')
+# ✅ Function to translate text (English → Target Language)
+def translate_text(text, target_language):
+    gemini = get_gemini_model()
+    response = gemini.generate_content(
+        f"Translate the following crop details into {target_language}:\n\n{text}"
+    )
+    return response.text
 
-# ✅ Classification helper
-def classify(pred):
-    return pred[0]
-
-# ✅ Streamlit main function
+# ✅ Main app
 def main():
-    st.title("CropWise (Crop Recommender)")
-    
-    # Load and show image
-    base_path = os.path.dirname(r'C:\Users\ghosh\Desktop\CropWise')
-    image_path = os.path.join(r'C:\Users\ghosh\Desktop\CropWise', '..', 'data', 'cc.jpg')
-    image = Image.open(image_path)
-    st.image(image, use_column_width=True)
-    
+    st.title("🌱 CropWise - Smart Crop Recommender")
+
+    # Show image
+    image = load_image()
+    st.image(image, use_container_width=True)
+
     # Header
-    html_temp = """
+    st.markdown("""
     <div style="background-color:teal; padding:10px">
-    <h2 style="color:white;text-align:center;">Find The Most Suitable Crop</h2>
+        <h2 style="color:white; text-align:center;">Find The Most Suitable Crop</h2>
     </div>
-    """
-    st.markdown(html_temp, unsafe_allow_html=True)
-    
-    # Model selection
-    activities = ['Naive Bayes (The Best Model)', 'Logistic Regression', 'Decision Tree', 'Random Forest']
-    option = st.sidebar.selectbox("Which model would you like to use?", activities)
+    """, unsafe_allow_html=True)
+
+    # Sidebar model selection
+    activities = [
+        'Naive Bayes (The Best Model)',
+        'Logistic Regression',
+        'Decision Tree',
+        'Random Forest'
+    ]
+    option = st.sidebar.selectbox("Select model:", activities)
+
+    # 🌐 Language selection
+    selected_language = st.sidebar.selectbox("🌐 Select Language", list(languages.keys()))
+
     st.subheader(option)
-    
+
     # Inputs
     sn = st.slider('NITROGEN (N)', 0.0, 150.0)
     sp = st.slider('PHOSPHOROUS (P)', 0.0, 150.0)
     pk = st.slider('POTASSIUM (K)', 0.0, 210.0)
-    pt = st.slider('TEMPERATURE', 0.0, 50.0)
-    phu = st.slider('HUMIDITY', 0.0, 100.0)
-    pPh = st.slider('Ph', 0.0, 14.0)
-    pr = st.slider('RAINFALL', 0.0, 300.0)
-    
+    pt = st.slider('TEMPERATURE (°C)', 0.0, 50.0)
+    phu = st.slider('HUMIDITY (%)', 0.0, 100.0)
+    pPh = st.slider('SOIL pH', 0.0, 14.0)
+    pr = st.slider('RAINFALL (mm)', 0.0, 300.0)
     inputs = [[sn, sp, pk, pt, phu, pPh, pr]]
+
+    # ✅ Model mapping
+    base_path = os.path.dirname(__file__)
+    model_map = {
+        'Logistic Regression': load_model(os.path.join(base_path, 'LogisticRegression_model.pkl')),
+        'Decision Tree': load_model(os.path.join(base_path, 'DecisionTree_model.pkl')),
+        'Naive Bayes (The Best Model)': load_model(os.path.join(base_path, 'NaiveBayes_model.pkl')),
+        'Random Forest': load_model(os.path.join(base_path, 'RandomForest_model.pkl'))
+    }
 
     # Classification button
     if st.button('Classify'):
-        if option == 'Logistic Regression':
-            model1 = joblib.load(model_path1)
-            result = classify(model1.predict(inputs))
-        elif option == 'Decision Tree':
-            model2 = joblib.load(model_path2)
-            result = classify(model2.predict(inputs))
-        elif option == 'Naive Bayes (The Best Model)':
-            model3 = joblib.load(model_path3)
-            result = classify(model3.predict(inputs))
-        else:
-            model4 = joblib.load(model_path4)
-            result = classify(model4.predict(inputs))
-        
-        st.success(f"Recommended Crop: {result}")
-        st.session_state['classification_result'] = result
+        with st.spinner("Classifying with selected model..."):
+            selected_model = model_map[option]
+            prediction = selected_model.predict(inputs)[0]
+            st.success(f"✅ Recommended Crop: **{prediction}**")
+            st.session_state['classification_result'] = prediction
 
-    # Gemini integration
+    # Gemini crop details
     if 'classification_result' in st.session_state:
         result = st.session_state['classification_result']
         if st.button(f'Know more about {result}'):
-            with st.spinner("Generating crop information..."):
-                response = model.generate_content("Crop Name: " + result)
-                st.markdown(response.text)
+            with st.spinner("Generating crop insights..."):
+                if selected_language == "English":
+                    # Direct English generation
+                    system_instruction = """
+                    Given the name of a crop, your task is to generate detailed insights about it in English.
+                    Your response should include:
+                    1. Climate Requirements
+                    2. Sowing Time
+                    3. Soil Preparation
+                    4. Spacing and Planting Depth
+                    5. Fertilizer Recommendations
+                    6. Pesticides and Pest Control
+                    7. Irrigation Requirements
+                    8. Growth Stages and Care
+                    9. Harvesting Time
+                    10. Equipment Needed
+                    11. Companion and Similar Crops
+                    """
+                    gemini = get_gemini_model(system_instruction)
+                    response = gemini.generate_content("Crop Name: " + result)
+                    st.write(response.text)
+                else:
+                    # Generate in English first → then translate
+                    gemini = get_gemini_model()
+                    response = gemini.generate_content("Crop Name: " + result)
+                    translated_text = translate_text(response.text, selected_language)
+                    st.write(translated_text)
 
-# ✅ Run the app
+# ✅ Run app
 if __name__ == '__main__':
     main()
+
