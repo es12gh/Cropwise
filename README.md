@@ -31,5 +31,4 @@ It also provides **detailed cultivation insights** in **multiple Indian language
 
 ---
 
-## 📂 Project Structure
 
